@@ -1,4 +1,4 @@
-import { IHomisellPropertyMapped } from "~/flows/luzia";
+import { IHomisellPropertyMapped } from "~/types/luzia";
 import { getFullCurrentDate } from "~/utils/currentDate";
 
 const generateReportsPrompt = (properties: IHomisellPropertyMapped[]) => {
@@ -25,10 +25,6 @@ export function generatePrompt(history: string, inventory: IHomisellPropertyMapp
     ].join("\n");
 
     const inventoryText = generateReportsPrompt(inventory);
-
-   //  6. *Validación en Hoja Interna:*
-   // - Si está disponible: “¡Excelente! La fecha seleccionada está disponible. Te confirmo tu cita/visita para el proyecto {{PROYECTO}} el día {{FECHA}} 📅.”
-   // - Si NO está disponible: “Lo siento 😅, esa fecha ya no está disponible. Estas son las fechas próximas que puedo ofrecerte para el proyecto {{PROYECTO}}: {{fechas_alternativas}}. ¿Cuál prefieres?”
 
     const coreLogic = `
 Lógica Conversacional (Core Logic)

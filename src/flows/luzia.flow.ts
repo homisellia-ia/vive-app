@@ -9,11 +9,12 @@ import { sheets } from "~/services/sheets"
 import { scheduleReminders } from "~/utils/scheduleReminders"
 import { GoogleSpreadsheet } from 'google-spreadsheet'
 import { JWT } from 'google-auth-library'
-import { IAvailability, IHomisellProperty, IHomisellPropertyMapped } from "~/flows/luzia.d"
+import { IAvailability, IHomisellProperty, IHomisellPropertyMapped } from "~/types/luzia"
 import { homisell } from '~/services/homisell'
 import { BotState } from "~/types/bot"
 import { appToCalendar } from "~/services/calendar"
 import { getFullCurrentDate } from "~/utils/currentDate"
+import { globalFlags } from "~/core/globals"
 
 // const spreadsheetUrl = "https://docs.google.com/spreadsheets/d/1ovUnirT4K8ajhny_MlkiMGwNfWoj6V9d8RGVUSXexq8/edit?usp=sharing"
 // const SPREADSHEET_ID = spreadsheetUrl.split('/')[5]
@@ -115,15 +116,9 @@ export const flowLuzIA = addKeyword(EVENTS.ACTION).addAction(
 
       // const text = await ai.createChat([{ role: 'system', content: prompt }])
       const text = await ai.createChat([
-          {
-              role: 'system',
-              content: prompt
-          },
-          ...getHistoryAsLLMMessages(state as BotState),
-          {
-              role: 'user',
-              content: ctx.body
-          }
+        { role: 'system', content: prompt },
+        ...getHistoryAsLLMMessages(state as BotState),
+        { role: 'user', content: ctx.body }
       ])
 
       if (!text || typeof text !== 'string' || text.trim() === '') return await flowDynamic("⚠️ Ocurrió un problema procesando tu mensaje. ¿Podrías repetirlo? 🙏")
@@ -156,7 +151,10 @@ export const flowLuzIA = addKeyword(EVENTS.ACTION).addAction(
         1000
       )
 
-      const parts = text.split(/(?<!\d)\.\s+/g)
+      // Evita repeticiones innecesarias
+      // const parts = text.split(/(?<!\d)\.\s+/g)
+      const parts = text.split(/\n+/g).filter(Boolean)
+
       for (const part of parts) {
         await flowDynamic([{ body: part, delay: generateTimer(150, 250) }])
       }
@@ -186,15 +184,9 @@ export const flowLuzIA = addKeyword(EVENTS.ACTION).addAction(
             phone: ctx.from,
             updates: {
               firstname: parsed.nombre_completo,
-              hs_whatsapp_phone_number: parsed.telefono,
-              hubspot_owner_id: "423897229"
+              hs_whatsapp_phone_number: parsed.telefono
             }
           })
-          // await hubspot.create({ 
-          //   phone: parsed.telefono, 
-          //   name: parsed.nombre_completo,
-          //   hubspot_owner_id: "423897229"
-          // })
           await state.update({ gate_prices_passed: true })
         }, 5000)
         
@@ -238,29 +230,55 @@ export const flowLuzIA = addKeyword(EVENTS.ACTION).addAction(
         // console.log("Filter:", filteredProperties)
 
         if (filteredProperties.length > 0) {
-            const reports = filteredProperties.slice(0, 3).map(generateReport).join('\n\n')
-            await flowDynamic([{ body: "¡Excelente! Preparé estas 3 opciones para ti.\n\n" + reports }])
-    
-            const recommendedProjects = filteredProperties.slice(0, 3).map(p => p.proyecto).join(', ')
-            setTimeout(async () => {
-              await hubspot.update({ 
-                phone: ctx.from, 
-                updates: { 
-                  proyectos_recomendados: reports,
-                  dormitorios_necesarios: parsed.dormitorios
-                } 
-              })
-            }, 5000)
-            
-            await state.update({ informes_entregados: true, recommended_projects: recommendedProjects })
-            await flowDynamic([{ body: "¿Cuál de estos proyectos te interesa más?" }])
+          const reports = filteredProperties.slice(0, 3)
+            .map((prop, index) => `${index + 1}. ${generateReport(prop)}`)
+            .join('\n\n')
+
+          // await flowDynamic([{ body: "¡Excelente! Preparé estas 3 opciones para ti.\n\n" + reports }])
+          // await flowDynamic([{ body: "Por favor, indícame el número del proyecto que más te interesa (1, 2 o 3)." }])
+  
+          const recommendedProjects = filteredProperties.slice(0, 3).map(p => p.proyecto).join(', ')
+          setTimeout(async () => {
+            await hubspot.update({ 
+              phone: ctx.from, 
+              updates: { 
+                proyectos_recomendados: reports,
+                dormitorios_necesarios: parsed.dormitorios
+              } 
+            })
+          }, 5000)
+          
+          await state.update({ 
+            informes_entregados: true, 
+            recommended_projects: recommendedProjects, 
+            filtered_properties: filteredProperties 
+          })
+          
+          // await flowDynamic([{ body: "¿Cuál de estos proyectos te interesa más?" }])
         } else {
-            await flowDynamic("Lo siento, no pude encontrar proyectos que coincidan con tus criterios. ¿Te gustaría buscar con otros parámetros?")
+          // await flowDynamic("Lo siento, no pude encontrar proyectos que coincidan con tus criterios. ¿Te gustaría buscar con otros parámetros?")
         }
         return
       }
 
       console.log(parsed)
+
+      // if (parsed.proyecto_elegido) {
+      //   const filteredProperties = state.get('filtered_properties') || []
+      //   const choiceIndex = parseInt(parsed.proyecto_elegido, 10) - 1
+
+      //   if (filteredProperties[choiceIndex]) {
+      //     const selectedProject = filteredProperties[choiceIndex]
+
+      //     await state.update({ proyecto_elegido: selectedProject.proyecto })
+      //     await flowDynamic(`Perfecto 🙌 seleccionaste *${selectedProject.proyecto}* en ${selectedProject.distrito}.`)
+
+      //     await flowDynamic("📅 ¿Qué fecha te gustaría para coordinar la visita o reserva?")
+      //   } else {
+      //     await flowDynamic("⚠️ El número que elegiste no corresponde a las opciones mostradas. Por favor, responde con 1, 2 o 3.")
+      //   }
+      //   return
+      // }
 
       // Etapa 3: Selección de proyecto y validación de disponibilidad
       // if (state.get('informes_entregados') && !state.get('cita_agendada') && (parsed.proyecto_elegido && parsed.fecha_cita)) {

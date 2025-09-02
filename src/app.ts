@@ -133,16 +133,16 @@ const main = async () => {
 
                 // console.log(attachments)
 
-                // const agentData = await handlerMessage(
-                //     {
-                //         phone: payload.from,
-                //         name: payload.pushName,
-                //         message: text,
-                //         mode: "incoming",
-                //         attachment: attachments,
-                //     },
-                //     chatwoot
-                // )
+                const agentData = await handlerMessage(
+                    {
+                        phone: payload.from,
+                        name: payload.pushName,
+                        message: text,
+                        mode: "incoming",
+                        attachment: attachments,
+                    },
+                    chatwoot
+                )
 
                 // await handlerSheets({
                 //     phone: payload.from,
@@ -154,7 +154,7 @@ const main = async () => {
                 await handlerHubspot({
                     name: payload.pushName,
                     phone: payload.from,
-                    hubspot_owner_id: 423897229
+                    hubspot_owner_id: agentData?.hubspotOwnerId ?? ""
                 })
             } catch (error) {
                 console.log("ERROR", error)
