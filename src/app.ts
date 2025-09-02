@@ -133,16 +133,16 @@ const main = async () => {
 
                 // console.log(attachments)
 
-                const agentData = await handlerMessage(
-                    {
-                        phone: payload.from,
-                        name: payload.pushName,
-                        message: text,
-                        mode: "incoming",
-                        attachment: attachments,
-                    },
-                    chatwoot
-                )
+                // const agentData = await handlerMessage(
+                //     {
+                //         phone: payload.from,
+                //         name: payload.pushName,
+                //         message: text,
+                //         mode: "incoming",
+                //         attachment: attachments,
+                //     },
+                //     chatwoot
+                // )
 
                 // await handlerSheets({
                 //     phone: payload.from,

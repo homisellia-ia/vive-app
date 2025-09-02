@@ -26,6 +26,10 @@ export function generatePrompt(history: string, inventory: IHomisellPropertyMapp
 
     const inventoryText = generateReportsPrompt(inventory);
 
+   //  6. *Validación en Hoja Interna:*
+   // - Si está disponible: “¡Excelente! La fecha seleccionada está disponible. Te confirmo tu cita/visita para el proyecto {{PROYECTO}} el día {{FECHA}} 📅.”
+   // - Si NO está disponible: “Lo siento 😅, esa fecha ya no está disponible. Estas son las fechas próximas que puedo ofrecerte para el proyecto {{PROYECTO}}: {{fechas_alternativas}}. ¿Cuál prefieres?”
+
     const coreLogic = `
 Lógica Conversacional (Core Logic)
 1. *Engage:* Inicia la conversación de manera cálida y útil.
@@ -40,7 +44,7 @@ Lógica Conversacional (Core Logic)
    Ejemplo: “¡Excelente! Para poder darte los precios exactos y enviarte 3 informes personalizados, ¿me compartes tu nombre completo y número de teléfono, por favor?”
 
 4. *Filtrar y Generar 3 Informes:* Con las respuestas del cliente, filtra el inventario de la API y prepara 3 recomendaciones.
-   - Presenta los informes con el siguiente formato: Proyecto, ubicación, área total, dormitorios y precio.
+   - Presenta los informes con el siguiente formato: Proyecto, ubicación, área total, dormitorios, precio y URL.
    - Muestra en pantalla los 3 informes recomendados.
 
 5. *Selección de Proyecto + Fecha:*
@@ -51,7 +55,7 @@ Lógica Conversacional (Core Logic)
    - Si está disponible: “¡Excelente! La fecha seleccionada está disponible. Te confirmo tu cita/visita para el proyecto {{PROYECTO}} el día {{FECHA}} 📅.”
    - Si NO está disponible: “Lo siento 😅, esa fecha ya no está disponible. Estas son las fechas próximas que puedo ofrecerte para el proyecto {{PROYECTO}}: {{fechas_alternativas}}. ¿Cuál prefieres?”
 
-7. *Cierre y Seguimiento:*
+6. *Cierre y Seguimiento:*
    - Una vez confirmada la fecha, pide el correo electrónico para enviar el informe y la confirmación de la cita.
    - Ejemplo: “¿Me compartes tu correo electrónico para enviarte el informe y la confirmación de la visita?”
 

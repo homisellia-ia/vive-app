@@ -1,8 +1,7 @@
 import { addKeyword, EVENTS } from "@builderbot/bot"
-import { BotState } from "@builderbot/bot/dist/types"
 import { generatePrompt } from "~/prompts/generatePrompt"
 import { generateTimer } from "~/utils/generateTimer"
-import { getHistoryParse, handleHistory, clearHistory } from "~/utils/handleHistory"
+import { getHistoryParse, handleHistory, clearHistory, getHistoryAsLLMMessages } from "~/utils/handleHistory"
 import { handlerHubspot, hubspot } from "~/services/hubspot"
 import AIClass from "~/services/ai"
 import { safeJSONParse } from "~/utils/safeJSONParse"
@@ -12,6 +11,9 @@ import { GoogleSpreadsheet } from 'google-spreadsheet'
 import { JWT } from 'google-auth-library'
 import { IAvailability, IHomisellProperty, IHomisellPropertyMapped } from "~/flows/luzia.d"
 import { homisell } from '~/services/homisell'
+import { BotState } from "~/types/bot"
+import { appToCalendar } from "~/services/calendar"
+import { getFullCurrentDate } from "~/utils/currentDate"
 
 // const spreadsheetUrl = "https://docs.google.com/spreadsheets/d/1ovUnirT4K8ajhny_MlkiMGwNfWoj6V9d8RGVUSXexq8/edit?usp=sharing"
 // const SPREADSHEET_ID = spreadsheetUrl.split('/')[5]
@@ -70,6 +72,32 @@ const generateReport = (property: IHomisellPropertyMapped) => {
 ---`
 }
 
+const generateJsonParse = (info: string) => {
+    const prompt = `tu tarea principal es analizar la información proporcionada en el contexto y generar un objeto JSON que se adhiera a la estructura especificada a continuación. 
+
+    Contexto: "${info}"
+    
+    {
+        "name": "Leifer",
+        "interest": "n/a",
+        "value": "0",
+        "startDate": "2024/02/15 00:00:00"
+    }
+    
+    Objeto JSON a generar:`
+
+    return prompt
+}
+
+const generatePromptToFormatDate = (history: string) => {
+    const prompt = `Fecha de Hoy:${getFullCurrentDate()}, Basado en el Historial de conversacion: 
+    ${history}
+    ----------------
+    Fecha ideal:...dd / mm hh:mm`
+
+    return prompt
+}
+
 export const flowLuzIA = addKeyword(EVENTS.ACTION).addAction(
   async (ctx, { state, flowDynamic, extensions, endFlow }) => {
     try {
@@ -85,7 +113,19 @@ export const flowLuzIA = addKeyword(EVENTS.ACTION).addAction(
 
       const prompt = generatePrompt(history, properties)
 
-      const text = await ai.createChat([{ role: 'system', content: prompt }])
+      // const text = await ai.createChat([{ role: 'system', content: prompt }])
+      const text = await ai.createChat([
+          {
+              role: 'system',
+              content: prompt
+          },
+          ...getHistoryAsLLMMessages(state as BotState),
+          {
+              role: 'user',
+              content: ctx.body
+          }
+      ])
+
       if (!text || typeof text !== 'string' || text.trim() === '') return await flowDynamic("⚠️ Ocurrió un problema procesando tu mensaje. ¿Podrías repetirlo? 🙏")
 
       await handleHistory({ content: text, role: 'assistant' }, state as BotState)
@@ -142,11 +182,19 @@ export const flowLuzIA = addKeyword(EVENTS.ACTION).addAction(
       // Etapa 2: Gate Prices y solicitud de datos
       if (!state.get('gate_prices_passed') && (parsed.nombre_completo && parsed.telefono)) {
         setTimeout(async () => {
-          await hubspot.create({ 
-            phone: parsed.telefono, 
-            name: parsed.nombre_completo,
-            hubspot_owner_id: "423897229"
+          await hubspot.update({
+            phone: ctx.from,
+            updates: {
+              firstname: parsed.nombre_completo,
+              hs_whatsapp_phone_number: parsed.telefono,
+              hubspot_owner_id: "423897229"
+            }
           })
+          // await hubspot.create({ 
+          //   phone: parsed.telefono, 
+          //   name: parsed.nombre_completo,
+          //   hubspot_owner_id: "423897229"
+          // })
           await state.update({ gate_prices_passed: true })
         }, 5000)
         
@@ -194,25 +242,46 @@ export const flowLuzIA = addKeyword(EVENTS.ACTION).addAction(
             await flowDynamic([{ body: "¡Excelente! Preparé estas 3 opciones para ti.\n\n" + reports }])
     
             const recommendedProjects = filteredProperties.slice(0, 3).map(p => p.proyecto).join(', ')
-            await hubspot.update({ phone: ctx.from, updates: { proyectos_recomendados: reports } })
+            setTimeout(async () => {
+              await hubspot.update({ 
+                phone: ctx.from, 
+                updates: { 
+                  proyectos_recomendados: reports,
+                  dormitorios_necesarios: parsed.dormitorios
+                } 
+              })
+            }, 5000)
             
             await state.update({ informes_entregados: true, recommended_projects: recommendedProjects })
             await flowDynamic([{ body: "¿Cuál de estos proyectos te interesa más?" }])
-
-            console.log(parsed)
         } else {
             await flowDynamic("Lo siento, no pude encontrar proyectos que coincidan con tus criterios. ¿Te gustaría buscar con otros parámetros?")
         }
         return
       }
 
+      console.log(parsed)
+
       // Etapa 3: Selección de proyecto y validación de disponibilidad
-      if (state.get('informes_entregados') && !state.get('cita_agendada') && (parsed.proyecto_elegido && parsed.fecha_cita)) {
-        const userChoice = parsed.proyecto_elegido
-        const userDate = parsed.fecha_cita
-        console.log("ETAPA 3:", userChoice, userDate)
-        
-        await hubspot.update({ phone: parsed.telefono, updates: { proyecto_elegido: userChoice } })
+      // if (state.get('informes_entregados') && !state.get('cita_agendada') && (parsed.proyecto_elegido && parsed.fecha_cita)) {
+        // console.log("informes_entregados")
+        // const userChoice = parsed.proyecto_elegido
+        // const userDate = parsed.fecha_cita
+        // setTimeout(async () => {
+        //   await hubspot.update({ phone: ctx.from, updates: { proyecto_elegido: parsed.proyecto_elegido } })
+        // }, 5000)
+
+        // const text = await ai.createChat([
+        //     {
+        //         role: 'system',
+        //         content: generatePromptToFormatDate(history)
+        //     }
+        // ])
+
+        // await handleHistory({ content: text, role: 'assistant' }, state as BotState)
+        // await flowDynamic(`¿Me confirmas fecha y hora?: ${text}`)
+        // await state.update({ startDate: text })
+
         
         // const isAvailable = availability.some(av => av.proyecto.toLowerCase() === userChoice.toLowerCase() && av.fecha === userDate && av.disponible)
 
@@ -229,16 +298,32 @@ export const flowLuzIA = addKeyword(EVENTS.ACTION).addAction(
         //       .join(', ')
         //   await flowDynamic(`Esa fecha ya no está disponible 😕. Estas son las fechas próximas que puedo ofrecerte para el proyecto ${userChoice}: ${alternativeDates}. ¿Cuál prefieres?`)
         // }
-        return
-      }
-      
+        // return
+      // }
+
       // Etapa 4: Cierre y seguimiento con email
-      if (state.get('cita_agendada') && parsed.email) {
-          // await hubspot.update({ phone: ctx.from, updates: { email: parsed.email } })
-          await flowDynamic("¡Genial! Recibirás el informe detallado y la confirmación de la visita en tu correo. ¿Hay algo más en lo que pueda ayudarte hoy? 😊")
-          await state.update({ finished: true })
-          await clearHistory(state as BotState)
-          return endFlow()
+      if (!state.get('cita_agendada') && parsed.correo) {
+        setTimeout(async () => {
+          await hubspot.update({ phone: ctx.from, updates: { email: parsed.correo, proyecto_elegido: parsed.proyecto_elegido } })
+        }, 5000)
+
+        const infoCustomer = `Name: ${parsed.nombre_completo}, StarteDate: ${parsed.fecha_cita}, email: ${parsed.correo}`
+        console.log(infoCustomer)
+        const ai = extensions.ai as AIClass
+
+        const text = await ai.createChat([
+            {
+                role: 'system',
+                content: generateJsonParse(infoCustomer)
+            }
+        ])
+
+        await appToCalendar(text)
+
+        await flowDynamic("¡Genial! Recibirás el informe detallado y la confirmación de la visita en tu correo. ¿Hay algo más en lo que pueda ayudarte hoy? 😊")
+        // await state.update({ finished: true })
+        // await clearHistory(state as BotState)
+        // return endFlow()
       }
     } catch (err) {
       console.error(`[ERROR]:`, err)
