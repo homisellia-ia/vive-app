@@ -50,14 +50,14 @@ export class HomisellService {
             // return jsonData.data
 
             return [{
-                id: 5875,
+                id: 1,
                 homisell_id: "HMS-5875",
                 titulo: "Departamento en venta con vista al mar en la costanera, San Miguel",
                 slug: "departamento-en-venta-con-vista-al-mar-en-la-costanera-san-miguel",
                 url: "https://homisell.com/propiedad/departamento-en-venta-con-vista-al-mar-en-la-costanera-san-miguel/",
                 descripcion_corta: "¡Descubre tu nuevo hogar en San Miguel con una impresionante vista al mar! 🌊 📐 87.00m² de comodidad y estilo🛏 3 dormitorios amplios🚿 2 baños modernos🏡 Piso 7 con vista&hellip;",
                 precio: {
-                    valor_crudo: 570100,
+                    valor_crudo: 350000,
                     formato_humano: "0",
                     prefijo: "",
                     sufijo: ""

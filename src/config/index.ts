@@ -21,5 +21,5 @@ export const config = {
     inboxName: process.env.INBOX_NAME,
     // Homisell
     homisellToken: process.env.HOMISELL_TOKEN,
-    homisellEndpoint: process.env.HOMISELL_ENDPOINT
+    homisellEndpoint: process.env.HOMISELL_ENDPOINT,
 }

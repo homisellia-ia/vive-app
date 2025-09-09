@@ -1,3 +1,5 @@
+import { BotState } from "@builderbot/bot/dist/types";
+
 export interface IHomisellProperty {
   id: number;
   homisell_id: string;
@@ -65,4 +67,14 @@ export interface IAvailability {
     proyecto: string;
     fecha: string;
     disponible: boolean;
+}
+
+export interface IConfirmedData {
+  district: string | null
+  bedrooms: number | null
+  budget: string | null
+  name: string | null
+  phone: string | null
+  chosen_project: string | null
+  startDate: string | null
 }

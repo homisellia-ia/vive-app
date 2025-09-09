@@ -44,16 +44,22 @@ const generateSchedulePrompt = (summary: string, history: string) => {
     return mainPrompt
 }
 
-const flowSchedule = addKeyword(EVENTS.ACTION).addAction(async (ctx, { extensions, state, flowDynamic }) => {
+export const flowSchedule = addKeyword(EVENTS.ACTION).addAction(async (ctx, { extensions, state, flowDynamic }) => {
     await flowDynamic('dame un momento para consultar la agenda...')
     const ai = extensions.ai as AIClass
     const history = getHistoryParse(state as BotState)
     const list = await getCurrentCalendar()
     const promptSchedule = generateSchedulePrompt(list?.length ? list : 'ninguna', history)
 
-    const text = await safeAiChat(ai, [
-        { role: "system", content: promptSchedule },
-        { role: "user", content: `Cliente pregunta: ${ctx.body}` }
+    const text = await ai.createChat([
+        {
+            role: 'system',
+            content: promptSchedule
+        },
+        {
+            role: 'user',
+            content: `Cliente pregunta: ${ctx.body}`
+        }
     ])
 
     await handleHistory({ content: text, role: 'assistant' }, state as BotState)
@@ -62,7 +68,4 @@ const flowSchedule = addKeyword(EVENTS.ACTION).addAction(async (ctx, { extension
     for (const chunk of chunks) {
         await flowDynamic([{ body: chunk.trim(), delay: generateTimer(150, 250) }])
     }
-
 })
-
-export { flowSchedule }

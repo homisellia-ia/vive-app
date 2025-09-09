@@ -1,49 +1,17 @@
 import { addKeyword, EVENTS } from "@builderbot/bot"
 import { generatePrompt } from "~/prompts/generatePrompt"
 import { generateTimer } from "~/utils/generateTimer"
-import { getHistoryParse, handleHistory, clearHistory, getHistoryAsLLMMessages } from "~/utils/handleHistory"
+import { getHistoryParse, handleHistory, clearHistory, getHistory } from "~/utils/handleHistory"
 import { handlerHubspot, hubspot } from "~/services/hubspot"
 import AIClass from "~/services/ai"
 import { safeJSONParse } from "~/utils/safeJSONParse"
-import { sheets } from "~/services/sheets"
 import { scheduleReminders } from "~/utils/scheduleReminders"
-import { GoogleSpreadsheet } from 'google-spreadsheet'
-import { JWT } from 'google-auth-library'
-import { IAvailability, IHomisellProperty, IHomisellPropertyMapped } from "~/types/luzia"
+import { IAvailability, IConfirmedData, IHomisellProperty, IHomisellPropertyMapped } from "~/types/luzia"
 import { homisell } from '~/services/homisell'
 import { BotState } from "~/types/bot"
 import { appToCalendar } from "~/services/calendar"
 import { getFullCurrentDate } from "~/utils/currentDate"
 import { globalFlags } from "~/core/globals"
-
-// const spreadsheetUrl = "https://docs.google.com/spreadsheets/d/1ovUnirT4K8ajhny_MlkiMGwNfWoj6V9d8RGVUSXexq8/edit?usp=sharing"
-// const SPREADSHEET_ID = spreadsheetUrl.split('/')[5]
-// const SERVICE_ACCOUNT_EMAIL = process.env.CLIENT_EMAIL
-// const PRIVATE_KEY = process.env.PRIVATE_KEY
-
-// const serviceAccountAuth = new JWT({
-//     email: SERVICE_ACCOUNT_EMAIL,
-//     key: PRIVATE_KEY!.replace(/\\n/g, '\n'),
-//     scopes: ['https://www.googleapis.com/auth/spreadsheets'],
-// })
-
-// const doc = new GoogleSpreadsheet(SPREADSHEET_ID, serviceAccountAuth)
-
-// const loadAvailabilitySheet = async (): Promise<IAvailability[]> => {
-//     try {
-//         await doc.loadInfo()
-//         const availabilitySheet = doc.sheetsByTitle['Hoja interna de disponibilidad']
-//         const rows = await availabilitySheet.getRows()
-//         return rows.map(row => ({
-//             proyecto: row.PROYECTO,
-//             fecha: row.FECHA,
-//             disponible: row.DISPONIBLE === 'Sí'
-//         }))
-//     } catch (e) {
-//         console.error("Error al cargar la hoja de disponibilidad:", e)
-//         throw new Error("No se pudo cargar la hoja de disponibilidad.")
-//     }
-// }
 
 const mapHomisellProperty = (prop: IHomisellProperty): IHomisellPropertyMapped => {
   // Extraer el distrito de la dirección
@@ -63,187 +31,220 @@ const mapHomisellProperty = (prop: IHomisellProperty): IHomisellPropertyMapped =
 }
 
 const generateReport = (property: IHomisellPropertyMapped) => {
-    return `
-*Proyecto:* ${property.proyecto}
-*Ubicación:* ${property.distrito}
-*Área total (m²):* ${property.area}
-*Dormitorios:* ${property.habitaciones}
-*Precio:* $${property.precio.toLocaleString()}
-*URL:* ${property.url}
----`
+  return `
+    *Proyecto:* ${property.proyecto}
+    *Ubicación:* ${property.distrito}
+    *Área total (m²):* ${property.area}
+    *Dormitorios:* ${property.habitaciones}
+    *Precio:* $${property.precio.toLocaleString()}
+    *URL:* ${property.url}
+    ---
+  `
 }
 
-const generateJsonParse = (info: string) => {
-    const prompt = `tu tarea principal es analizar la información proporcionada en el contexto y generar un objeto JSON que se adhiera a la estructura especificada a continuación. 
-
-    Contexto: "${info}"
-    
-    {
-        "name": "Leifer",
-        "interest": "n/a",
-        "value": "0",
-        "startDate": "2024/02/15 00:00:00"
-    }
-    
-    Objeto JSON a generar:`
-
-    return prompt
-}
-
-const generatePromptToFormatDate = (history: string) => {
-    const prompt = `Fecha de Hoy:${getFullCurrentDate()}, Basado en el Historial de conversacion: 
-    ${history}
-    ----------------
-    Fecha ideal:...dd / mm hh:mm`
-
-    return prompt
+const confirmedData: IConfirmedData = {
+  district: null,
+  bedrooms: null,
+  budget: null,
+  name: null,
+  phone: null,
+  chosen_project: null,
+  startDate: null,
 }
 
 export const flowLuzIA = addKeyword(EVENTS.ACTION).addAction(
   async (ctx, { state, flowDynamic, extensions, endFlow }) => {
     try {
       scheduleReminders(ctx, state, flowDynamic, endFlow)
-
-      const ai = extensions.ai as AIClass
-      const history = getHistoryParse(state as BotState)
-
+      
       const homisellProperties = await homisell.getProperties()
       const properties = homisellProperties.map(mapHomisellProperty)
-
-      // const availability = await loadAvailabilitySheet()
-
-      const prompt = generatePrompt(history, properties)
-
-      // const text = await ai.createChat([{ role: 'system', content: prompt }])
-      const text = await ai.createChat([
-        { role: 'system', content: prompt },
-        ...getHistoryAsLLMMessages(state as BotState),
-        { role: 'user', content: ctx.body }
-      ])
-
-      if (!text || typeof text !== 'string' || text.trim() === '') return await flowDynamic("⚠️ Ocurrió un problema procesando tu mensaje. ¿Podrías repetirlo? 🙏")
-
-      await handleHistory({ content: text, role: 'assistant' }, state as BotState)
+      
+      const history = getHistoryParse(state as BotState)
+      
+      const ai = extensions.ai as AIClass
 
       const parsed = await safeJSONParse(
         async () => {
           const retryPrompt = `
-            Analiza el historial y extrae la siguiente información:
-            - nombre_completo
-            - telefono
-            - correo
-            - proyecto_elegido
-            - fecha_cita
-            - distrito
-            - dormitorios
-            - presupuesto
-            - comodidades: Devuelve SIEMPRE un array con las claves exactas que coincidan con las propiedades disponibles en el campo "comodidades" de la API.
-              Las claves válidas son: ["piscina", "jardin", "balcon", "terraza", "gimnasio"]. 
-              Si el usuario no menciona ninguna, devuelve un array vacío [].
-              Ejemplo válido: ["piscina", "terraza"].
+            Hoy es: ${getFullCurrentDate()}
 
-            Devuelve SOLO un JSON con esos campos. 
-          
-            Historial: "${history}"
+            Tarea: Lee el HISTORIAL_DE_CONVERSACION y devuelve SOLO un JSON con los campos definidos. 
+            - Si un campo no aparece o es inválido, devuélvelo como null.
+            - Usa solo datos confirmados por la IA.
+            - No incluyas explicaciones fuera del JSON.
+
+            HISTORIAL_CONFIRMADO:
+            ${JSON.stringify(getHistory(state as BotState))}
+
+            PROYECTOS_RECOMENDADOS:
+            ${state.get('recommended_projects') || ""}
+
+            FORMATO JSON:
+            {
+              "nombre_completo": string | null,
+              "telefono": string | null,
+              "correo": string | null,
+              "proyecto_elegido": string | null,
+              "fecha_cita": string | null,
+              "distrito": string | null,
+              "dormitorios": number | null,
+              "presupuesto": string | null,
+              "nota": string | null,
+              "etiqueta_puntaje": "Baja" | "Media" | "Alta" | null,
+              "puntaje_total": number | null,
+              "webinar": "Si" | "No" | null
+            }
+
+            ─────────────────────────────
+            REGLAS DE NEGOCIO
+            - Usa solo los datos confirmados.
+            - El usuario responderá con un número (1, 2 o 3).
+            - proyecto_elegido: Usa el nombre del proyecto {{PROYECTO}} correspondiente de PROYECTOS_RECOMENDADOS según ese número.
+            - fecha_cita: SIEMPRE en formato *YYYY/MM/DD HH:MM:SS* en 24 horas, Null si no se indica.
+            - distrito: null si genérico o inválido. Si existe, mostrar con mayúscula inicial en cada palabra. Ej: "San Miguel".
+            - telefono: null si no tiene entre 7-15 dígitos.
+            - correo: null si no es válido o no se llegó al paso de pedir correo.
+            - presupuesto: null si no hay número claro. Si existe, mostrar formateado con comas como separador de miles.
+            - nombre_completo: null si es solo un nombre corto. Si existe, mostrar con mayúscula inicial en cada palabra. Ej: "Antony Espinoza".
+            - nota: Resume en una frase las acciones y comportamiento del usuario durante la conversación.  
+                Ejemplo: "El usuario confirmó distrito y número de dormitorios, proporcionó teléfono, mostró interés en agendar cita."
+            - puntaje_total: Suma los puntos asignados por:
+                1. Tipo de usuario (Pipeline):
+                    - Curioso Explorador: 2
+                    - Investigar Cauteloso: 5
+                    - Profesional Apurado: 8
+                    - Inversionista: 6
+                2. Señales típicas relevantes (1-3)
+                3. Tono y ritmo coincidente (1-3)
+                4. Preguntas prioritarias respondidas (1-3)
+            - etiqueta_puntaje: "Baja" si puntaje_total 0-9, "Media" si 10-15, "Alta" si 16-25
+            - webinar: "Si" solo si etiqueta_puntaje="Alta", si no "No"
           `
           return await ai.createChat([{ role: 'system', content: retryPrompt }])
         },
         1000
       )
 
-      // Evita repeticiones innecesarias
-      // const parts = text.split(/(?<!\d)\.\s+/g)
-      const parts = text.split(/\n+/g).filter(Boolean)
-
-      for (const part of parts) {
-        await flowDynamic([{ body: part, delay: generateTimer(150, 250) }])
+      const data = {
+        phone: parsed.telefono ?? null,
+        name: parsed.nombre_completo ?? null,
+        startDate: parsed.fecha_cita ?? null,
+        email: parsed.correo ?? null,
+        note: parsed.nota ?? null,
+        budget: parsed.presupuesto ?? null,
+        bedrooms: parsed.dormitorios ?? null,
+        district: parsed.distrito ?? null,
+        chosen_project: parsed.proyecto_elegido ?? null,
+        score_tag: parsed.etiqueta_puntaje ?? null,
+        total_score: parsed.puntaje_total ?? null,
+        webinar: parsed.webinar ?? null
       }
 
-      // console.log(parsed)
+      for (const key in data) {
+        if (confirmedData[key] === null && data[key] !== null) {
+          confirmedData[key] = data[key]
+        }
+      }
 
-      // Etapa 1: Calificación y recopilación de info
+      console.log(data)
+
+      const prompt = generatePrompt(history, properties, confirmedData, state.get('recommended_projects'))
+
+      const text = await ai.createChat([
+        { role: 'system', content: prompt },
+        ...getHistory(state as BotState).map(h => ({ role: h.role, content: h.content })),
+        { role: 'user', content: ctx.body }
+      ])
+
+      if (!text || typeof text !== 'string' || text.trim() === '') {
+        return await flowDynamic("⚠️ Ocurrió un problema procesando tu mensaje. ¿Podrías repetirlo? 🙏")
+      }
+
+      // console.log("Datos confirmados:", confirmedData)
+
       if (!state.get('calificado')) {
         setTimeout(async () => {
           await hubspot.update({ 
             phone: ctx.from, 
             updates: {
-              distrito_interes: parsed.distrito,
-              dormitorios_necesarios: parsed.dormitorios,
-              presupuesto_aprox: parsed.presupuesto
+              distrito_interes: confirmedData.district,
+              dormitorios_necesarios: confirmedData.bedrooms,
+              presupuesto_aprox: confirmedData.budget
             } 
           })
           await state.update({ calificado: true })
         }, 5000)
-        return
       }
 
-      // Etapa 2: Gate Prices y solicitud de datos
-      if (!state.get('gate_prices_passed') && (parsed.nombre_completo && parsed.telefono)) {
+      if (!state.get('gate_prices_passed') && (confirmedData.name && confirmedData.phone)) {
         setTimeout(async () => {
           await hubspot.update({
             phone: ctx.from,
             updates: {
-              firstname: parsed.nombre_completo,
-              hs_whatsapp_phone_number: parsed.telefono
+              firstname: confirmedData.name,
+              hs_whatsapp_phone_number: confirmedData.phone
             }
           })
           await state.update({ gate_prices_passed: true })
         }, 5000)
         
-        // Entregar informes inmediatamente después de obtener datos de contacto
         const filteredProperties = properties.filter(prop => {
           let isValid = true
 
-          if (parsed?.distrito) {
-            isValid = isValid && prop.distrito.toLowerCase() === parsed.distrito.toLowerCase()
+          if (confirmedData?.district) {
+            isValid = isValid && prop.distrito.toLowerCase() === confirmedData.district.toLowerCase()
           }
 
-          if (parsed?.dormitorios) {
-            isValid = isValid && Number(prop.habitaciones) === Number(parsed.dormitorios)
+          if (confirmedData?.bedrooms) {
+            isValid = isValid && Number(prop.habitaciones) === Number(confirmedData.bedrooms)
           }
 
-          if (parsed?.presupuesto) {
-            isValid = isValid && Number(prop.precio) <= Number(parsed.presupuesto)
+          if (confirmedData?.budget) {
+            const budgetNumber = parseInt(confirmedData.budget.replace(/,/g, ''), 10)
+            isValid = isValid && Number(prop.precio) <= budgetNumber
           }
 
-          if (parsed?.comodidades?.length > 0) {
-            let comodidadMatch = true
+          // if (parsed?.comodidades?.length > 0) {
+          //   let comodidadMatch = true
 
-            for (const c of parsed.comodidades) {
-              const tiene = prop.comodidades[c] === true
-              if (tiene) {
-                console.log(`Tenemos ${c}`)
-                // comodidadMatch = comodidadMatch && tiene
-              } else {
-                console.log(`No tenemos ${c}`)
-                // comodidadMatch = false
-              }
-              comodidadMatch = comodidadMatch && tiene
-            }
+          //   for (const c of parsed.comodidades) {
+          //     const tiene = prop.comodidades[c] === true
+          //     if (tiene) {
+          //       console.log(`Tenemos ${c}`)
+          //       // comodidadMatch = comodidadMatch && tiene
+          //     } else {
+          //       console.log(`No tenemos ${c}`)
+          //       // comodidadMatch = false
+          //     }
+          //     comodidadMatch = comodidadMatch && tiene
+          //   }
 
-            isValid = isValid && comodidadMatch
-          }
+          //   isValid = isValid && comodidadMatch
+          // }
 
           return isValid
         })
-
-        // console.log("Filter:", filteredProperties)
 
         if (filteredProperties.length > 0) {
           const reports = filteredProperties.slice(0, 3)
             .map((prop, index) => `${index + 1}. ${generateReport(prop)}`)
             .join('\n\n')
 
-          // await flowDynamic([{ body: "¡Excelente! Preparé estas 3 opciones para ti.\n\n" + reports }])
+          await flowDynamic([{ body: "¡Excelente! Preparé estas 3 opciones para ti.\n\n" + reports }])
           // await flowDynamic([{ body: "Por favor, indícame el número del proyecto que más te interesa (1, 2 o 3)." }])
   
-          const recommendedProjects = filteredProperties.slice(0, 3).map(p => p.proyecto).join(', ')
+          const recommendedProjects = filteredProperties.slice(0, 3)
+            // .map(p => p.proyecto).join(', ')
+            .map((prop, index) => `${index + 1}. ${prop.proyecto}`)
+            .join('\n')
+          
           setTimeout(async () => {
             await hubspot.update({ 
               phone: ctx.from, 
               updates: { 
                 proyectos_recomendados: reports,
-                dormitorios_necesarios: parsed.dormitorios
+                dormitorios_necesarios: confirmedData.bedrooms
               } 
             })
           }, 5000)
@@ -253,95 +254,48 @@ export const flowLuzIA = addKeyword(EVENTS.ACTION).addAction(
             recommended_projects: recommendedProjects, 
             filtered_properties: filteredProperties 
           })
-          
+
           // await flowDynamic([{ body: "¿Cuál de estos proyectos te interesa más?" }])
         } else {
-          // await flowDynamic("Lo siento, no pude encontrar proyectos que coincidan con tus criterios. ¿Te gustaría buscar con otros parámetros?")
+          await flowDynamic("Lo siento, no pude encontrar proyectos que coincidan con tus criterios. ¿Te gustaría buscar con otros parámetros?")
         }
-        return
       }
 
-      console.log(parsed)
+      // console.log(parsed)
 
-      // if (parsed.proyecto_elegido) {
-      //   const filteredProperties = state.get('filtered_properties') || []
-      //   const choiceIndex = parseInt(parsed.proyecto_elegido, 10) - 1
-
-      //   if (filteredProperties[choiceIndex]) {
-      //     const selectedProject = filteredProperties[choiceIndex]
-
-      //     await state.update({ proyecto_elegido: selectedProject.proyecto })
-      //     await flowDynamic(`Perfecto 🙌 seleccionaste *${selectedProject.proyecto}* en ${selectedProject.distrito}.`)
-
-      //     await flowDynamic("📅 ¿Qué fecha te gustaría para coordinar la visita o reserva?")
-      //   } else {
-      //     await flowDynamic("⚠️ El número que elegiste no corresponde a las opciones mostradas. Por favor, responde con 1, 2 o 3.")
-      //   }
-      //   return
-      // }
-
-      // Etapa 3: Selección de proyecto y validación de disponibilidad
-      // if (state.get('informes_entregados') && !state.get('cita_agendada') && (parsed.proyecto_elegido && parsed.fecha_cita)) {
-        // console.log("informes_entregados")
-        // const userChoice = parsed.proyecto_elegido
-        // const userDate = parsed.fecha_cita
-        // setTimeout(async () => {
-        //   await hubspot.update({ phone: ctx.from, updates: { proyecto_elegido: parsed.proyecto_elegido } })
-        // }, 5000)
-
-        // const text = await ai.createChat([
-        //     {
-        //         role: 'system',
-        //         content: generatePromptToFormatDate(history)
-        //     }
-        // ])
-
-        // await handleHistory({ content: text, role: 'assistant' }, state as BotState)
-        // await flowDynamic(`¿Me confirmas fecha y hora?: ${text}`)
-        // await state.update({ startDate: text })
-
-        
-        // const isAvailable = availability.some(av => av.proyecto.toLowerCase() === userChoice.toLowerCase() && av.fecha === userDate && av.disponible)
-
-        // if (isAvailable) {
-        //   await hubspot.update({ phone: ctx.from, updates: { fecha_cita: userDate } })
-        //   await flowDynamic(`¡Excelente! La fecha seleccionada está disponible. Te confirmo tu cita/visita para el proyecto ${userChoice} el día ${userDate} 📅.`)
-        //   await state.update({ cita_agendada: true })
-        //   await flowDynamic("¿Me compartes tu correo electrónico para enviarte el informe y la confirmación de la visita?")
-        // } else {
-        //   const alternativeDates = availability
-        //       .filter(av => av.proyecto.toLowerCase() === userChoice.toLowerCase() && av.disponible)
-        //       .map(av => av.fecha)
-        //       .slice(0, 3)
-        //       .join(', ')
-        //   await flowDynamic(`Esa fecha ya no está disponible 😕. Estas son las fechas próximas que puedo ofrecerte para el proyecto ${userChoice}: ${alternativeDates}. ¿Cuál prefieres?`)
-        // }
-        // return
-      // }
-
-      // Etapa 4: Cierre y seguimiento con email
-      if (!state.get('cita_agendada') && parsed.correo) {
+      if (!state.get('cita_agendada') && data.email) {
         setTimeout(async () => {
-          await hubspot.update({ phone: ctx.from, updates: { email: parsed.correo, proyecto_elegido: parsed.proyecto_elegido } })
+          await hubspot.update({ phone: ctx.from, updates: { email: parsed.correo, proyecto_elegido: confirmedData.chosen_project } })
         }, 5000)
 
-        const infoCustomer = `Name: ${parsed.nombre_completo}, StarteDate: ${parsed.fecha_cita}, email: ${parsed.correo}`
-        console.log(infoCustomer)
-        const ai = extensions.ai as AIClass
+        const payload = {
+          phone: confirmedData.phone ?? "-",
+          name: confirmedData.name ?? "-",
+          startDate: confirmedData.startDate ?? "-",
+          email: parsed.correo ?? "-",
+          note: parsed.nota ?? "-",
+          budget: confirmedData.budget ?? "-",
+          bedrooms: confirmedData.bedrooms ?? "-",
+          district: confirmedData.district ?? "-",
+          chosen_project: confirmedData.chosen_project ?? "-",
+          recommended_project: state.get('recommended_projects') ?? "-",
+          score_tag: parsed.etiqueta_puntaje ?? "-",
+          total_score: parsed.puntaje_total ?? "-",
+          webinar: parsed.webinar ?? "-"
+        }
 
-        const text = await ai.createChat([
-            {
-                role: 'system',
-                content: generateJsonParse(infoCustomer)
-            }
-        ])
+        console.log(payload)
 
-        await appToCalendar(text)
+        await appToCalendar(payload)
+      }
 
-        await flowDynamic("¡Genial! Recibirás el informe detallado y la confirmación de la visita en tu correo. ¿Hay algo más en lo que pueda ayudarte hoy? 😊")
-        // await state.update({ finished: true })
-        // await clearHistory(state as BotState)
-        // return endFlow()
+      await handleHistory({ content: text, role: 'assistant' }, state as BotState)
+
+      // const parts = text.split(/(?<!\d)\.\s+/g)
+      const parts = text.split(/\n+/g).filter(Boolean)
+
+      for (const part of parts) {
+        await flowDynamic([{ body: part, delay: generateTimer(150, 250) }])
       }
     } catch (err) {
       console.error(`[ERROR]:`, err)

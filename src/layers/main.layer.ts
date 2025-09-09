@@ -1,4 +1,4 @@
-import { BotContext, BotMethods, BotState } from "~/types/bot"
+// import { BotContext, BotMethods, BotState } from "~/types/bot"
 import { globalFlags } from "~/core/globals"
 import { flowSeller } from "~/flows/seller.flow"
 import { flowSchedule } from "~/flows/schedule.flow"
@@ -10,6 +10,7 @@ import { cancelReminders, scheduleReminders } from "~/utils/scheduleReminders"
 import { CLASSIFIER_PROMPT } from "~/prompts/classifier.prompt"
 import { logInfo, logWarn } from "~/utils/logger"
 import AIClass from "~/services/ai"
+import { BotContext, BotMethods, BotState } from "@builderbot/bot/dist/types"
 
 export default async (ctx: BotContext, { state, gotoFlow, extensions, flowDynamic, endFlow }: BotMethods) => {
     if (state.get('finished')) return
@@ -60,7 +61,7 @@ export default async (ctx: BotContext, { state, gotoFlow, extensions, flowDynami
             // return gotoFlow(flowSeller)
             return gotoFlow(flowLuzIA)
         // case "AGENDAR":
-        //     return gotoFlow(flowSchedule)
+            // return gotoFlow(flowSchedule)
         // case "CONFIRMAR":
         //     return gotoFlow(flowConfirm)
         default:
