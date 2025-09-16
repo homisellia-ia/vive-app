@@ -53,6 +53,22 @@ export class HubSpotClass {
         return result.results?.[0] ?? null
     }
 
+    searchContactByEmail = async (email: string) => {
+        const result = await this.request("POST", "/crm/v3/objects/contacts/search", {
+            filterGroups: [
+                {
+                    filters: [
+                        { propertyName: "email", operator: "EQ", value: email }
+                    ],
+                },
+            ],
+            properties: ["email", "firstname", "phone", "hubspot_owner_id"],
+            limit: 1,
+        })
+
+        return result.results?.[0] ?? null
+    }
+
     create = async ({ name, phone, hubspot_owner_id }: { name: string; phone: string, hubspot_owner_id: string }) => {
         const exists = await this.searchContactByPhone(phone)
         if (exists) {

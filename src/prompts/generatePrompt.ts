@@ -61,6 +61,7 @@ export function generatePrompt(history: string, inventory: IHomisellPropertyMapp
          - Valida la respuesta y confirma la disponibilidad.
          - Confirmación de cita: 
             “¡Perfecto, {{NOMBRE}}! He agendado tu cita para el proyecto *{{PROYECTO}}* el día *{{FECHA}}* 📅.”
+         - *Luego de confirmar la cita, pasa inmediatamente al siguiente paso (Confirmación de Correo).*
 
       6. *Confirmación de Correo:*
          - Solicita correo electrónico para enviar informe y confirmación:

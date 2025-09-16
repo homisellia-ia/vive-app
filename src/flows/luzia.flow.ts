@@ -52,6 +52,8 @@ const confirmedData: IConfirmedData = {
   startDate: null,
 }
 
+// let existingEmail: string | null = null
+
 export const flowLuzIA = addKeyword(EVENTS.ACTION).addAction(
   async (ctx, { state, flowDynamic, extensions, endFlow }) => {
     try {
@@ -93,7 +95,6 @@ export const flowLuzIA = addKeyword(EVENTS.ACTION).addAction(
               "nota": string | null,
               "etiqueta_puntaje": "Baja" | "Media" | "Alta" | null,
               "puntaje_total": number | null,
-              "webinar": "Si" | "No" | null
             }
 
             ─────────────────────────────
@@ -119,7 +120,6 @@ export const flowLuzIA = addKeyword(EVENTS.ACTION).addAction(
                 3. Tono y ritmo coincidente (1-3)
                 4. Preguntas prioritarias respondidas (1-3)
             - etiqueta_puntaje: "Baja" si puntaje_total 0-9, "Media" si 10-15, "Alta" si 16-25
-            - webinar: "Si" solo si etiqueta_puntaje="Alta", si no "No"
           `
           return await ai.createChat([{ role: 'system', content: retryPrompt }])
         },
@@ -138,7 +138,6 @@ export const flowLuzIA = addKeyword(EVENTS.ACTION).addAction(
         chosen_project: parsed.proyecto_elegido ?? null,
         score_tag: parsed.etiqueta_puntaje ?? null,
         total_score: parsed.puntaje_total ?? null,
-        webinar: parsed.webinar ?? null
       }
 
       for (const key in data) {
@@ -146,8 +145,6 @@ export const flowLuzIA = addKeyword(EVENTS.ACTION).addAction(
           confirmedData[key] = data[key]
         }
       }
-
-      console.log(data)
 
       const prompt = generatePrompt(history, properties, confirmedData, state.get('recommended_projects'))
 
@@ -164,30 +161,30 @@ export const flowLuzIA = addKeyword(EVENTS.ACTION).addAction(
       // console.log("Datos confirmados:", confirmedData)
 
       if (!state.get('calificado')) {
-        setTimeout(async () => {
-          await hubspot.update({ 
-            phone: ctx.from, 
-            updates: {
-              distrito_interes: confirmedData.district,
-              dormitorios_necesarios: confirmedData.bedrooms,
-              presupuesto_aprox: confirmedData.budget
-            } 
-          })
+      //   setTimeout(async () => {
+      //     await hubspot.update({ 
+      //       phone: ctx.from, 
+      //       updates: {
+      //         distrito_interes: confirmedData.district,
+      //         dormitorios_necesarios: confirmedData.bedrooms,
+      //         presupuesto_aprox: confirmedData.budget
+      //       } 
+      //     })
           await state.update({ calificado: true })
-        }, 5000)
+      //   }, 5000)
       }
 
       if (!state.get('gate_prices_passed') && (confirmedData.name && confirmedData.phone)) {
-        setTimeout(async () => {
-          await hubspot.update({
-            phone: ctx.from,
-            updates: {
-              firstname: confirmedData.name,
-              hs_whatsapp_phone_number: confirmedData.phone
-            }
-          })
+        // setTimeout(async () => {
+        //   await hubspot.update({
+        //     phone: ctx.from,
+        //     updates: {
+        //       firstname: confirmedData.name,
+        //       hs_whatsapp_phone_number: confirmedData.phone
+        //     }
+        //   })
           await state.update({ gate_prices_passed: true })
-        }, 5000)
+        // }, 5000)
         
         const filteredProperties = properties.filter(prop => {
           let isValid = true
@@ -196,14 +193,14 @@ export const flowLuzIA = addKeyword(EVENTS.ACTION).addAction(
             isValid = isValid && prop.distrito.toLowerCase() === confirmedData.district.toLowerCase()
           }
 
-          if (confirmedData?.bedrooms) {
-            isValid = isValid && Number(prop.habitaciones) === Number(confirmedData.bedrooms)
-          }
+          // if (confirmedData?.bedrooms) {
+          //   isValid = isValid && Number(prop.habitaciones) === Number(confirmedData.bedrooms)
+          // }
 
-          if (confirmedData?.budget) {
-            const budgetNumber = parseInt(confirmedData.budget.replace(/,/g, ''), 10)
-            isValid = isValid && Number(prop.precio) <= budgetNumber
-          }
+          // if (confirmedData?.budget) {
+          //   const budgetNumber = parseInt(confirmedData.budget.replace(/,/g, ''), 10)
+          //   isValid = isValid && Number(prop.precio) <= budgetNumber
+          // }
 
           // if (parsed?.comodidades?.length > 0) {
           //   let comodidadMatch = true
@@ -239,20 +236,20 @@ export const flowLuzIA = addKeyword(EVENTS.ACTION).addAction(
             .map((prop, index) => `${index + 1}. ${prop.proyecto}`)
             .join('\n')
           
-          setTimeout(async () => {
-            await hubspot.update({ 
-              phone: ctx.from, 
-              updates: { 
-                proyectos_recomendados: reports,
-                dormitorios_necesarios: confirmedData.bedrooms
-              } 
-            })
-          }, 5000)
+          // setTimeout(async () => {
+          //   await hubspot.update({ 
+          //     phone: ctx.from, 
+          //     updates: { 
+          //       proyectos_recomendados: reports,
+          //       dormitorios_necesarios: confirmedData.bedrooms
+          //     } 
+          //   })
+          // }, 5000)
           
           await state.update({ 
             informes_entregados: true, 
-            recommended_projects: recommendedProjects, 
-            filtered_properties: filteredProperties 
+            recommended_projects: recommendedProjects,
+            reports_projects: reports
           })
 
           // await flowDynamic([{ body: "¿Cuál de estos proyectos te interesa más?" }])
@@ -262,31 +259,72 @@ export const flowLuzIA = addKeyword(EVENTS.ACTION).addAction(
       }
 
       // console.log(parsed)
+      // console.log(data.email)
+      // console.log(existingEmail)
 
       if (!state.get('cita_agendada') && data.email) {
-        setTimeout(async () => {
-          await hubspot.update({ phone: ctx.from, updates: { email: parsed.correo, proyecto_elegido: confirmedData.chosen_project } })
-        }, 5000)
+        // const existing = await hubspot.searchContactByEmail(data.email)
+
+        // if (existing) {
+        //   await flowDynamic(`⚠️  Disculpa, este correo *${data.email}* ya existe en nuestro sistema. 🙏 Podrías brindarme otro correo por favor.`)
+
+        //   existingEmail = data.email
+        //   await state.update({ waiting_for_new_email: true })
+        //   console.log("Correo existente:", data.email)
+        //   return
+        // }
+
+        // if (state.get("waiting_for_new_email")) {
+        //   await state.update({ waiting_for_new_email: false })
+        // }
+        // existingEmail = null
+
+        const webinar: "Si" | "No" =
+          data.score_tag === "Alta" || (data.total_score && data.total_score >= 16)
+            ? "Si"
+            : "No"
 
         const payload = {
           phone: confirmedData.phone ?? "-",
           name: confirmedData.name ?? "-",
           startDate: confirmedData.startDate ?? "-",
-          email: parsed.correo ?? "-",
-          note: parsed.nota ?? "-",
+          email: data.email ?? "-",
+          note: data.note ?? "-",
           budget: confirmedData.budget ?? "-",
           bedrooms: confirmedData.bedrooms ?? "-",
           district: confirmedData.district ?? "-",
           chosen_project: confirmedData.chosen_project ?? "-",
           recommended_project: state.get('recommended_projects') ?? "-",
-          score_tag: parsed.etiqueta_puntaje ?? "-",
-          total_score: parsed.puntaje_total ?? "-",
-          webinar: parsed.webinar ?? "-"
+          score_tag: data.score_tag ?? "-",
+          total_score: data.total_score ?? "-",
+          webinar
         }
 
         console.log(payload)
 
         await appToCalendar(payload)
+        // await handlerHubspot({
+        //   name: ctx.name,
+        //   phone: ctx.from,
+        //   hubspot_owner_id: globalFlags.hubspotOwnerId
+        // })
+
+        setTimeout(async () => {
+          await hubspot.update({ 
+            phone: ctx.from, 
+            updates: { 
+              firstname: payload.name,
+              hs_whatsapp_phone_number: payload.phone,
+              email: data.email, 
+              proyecto_elegido: payload.chosen_project,
+              proyectos_recomendados: state.get('reports_projects'),
+              dormitorios_necesarios: payload.bedrooms,
+              distrito_interes: payload.district,
+              presupuesto_aprox: payload.budget,
+              hs_content_membership_notes: payload.note
+            } 
+          })
+        }, 5000)
       }
 
       await handleHistory({ content: text, role: 'assistant' }, state as BotState)

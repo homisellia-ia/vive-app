@@ -1,3 +1,4 @@
+import { globalFlags } from "~/core/globals"
 import { config } from "../../config"
 import { hubspot } from "../hubspot"
 
@@ -51,6 +52,8 @@ const handlerMessage = async (dataIn: any, chatwoot: any) => {
             await chatwoot.assignAgentToConversation(conversation.id, agent.id)
             // console.log("🟢 Asignado agente:", matchedOwner.email)
         }
+
+        globalFlags.hubspotOwnerId = hubspotOwnerId
     }
 
     await chatwoot.createMessage({
