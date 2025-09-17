@@ -47,7 +47,6 @@ const confirmedData: IConfirmedData = {
   bedrooms: null,
   budget: null,
   name: null,
-  phone: null,
   chosen_project: null,
   startDate: null,
 }
@@ -85,7 +84,6 @@ export const flowLuzIA = addKeyword(EVENTS.ACTION).addAction(
             FORMATO JSON:
             {
               "nombre_completo": string | null,
-              "telefono": string | null,
               "correo": string | null,
               "proyecto_elegido": string | null,
               "fecha_cita": string | null,
@@ -104,7 +102,6 @@ export const flowLuzIA = addKeyword(EVENTS.ACTION).addAction(
             - proyecto_elegido: Usa el nombre del proyecto {{PROYECTO}} correspondiente de PROYECTOS_RECOMENDADOS según ese número.
             - fecha_cita: SIEMPRE en formato *YYYY/MM/DD HH:MM:SS* en 24 horas, Null si no se indica.
             - distrito: null si genérico o inválido. Si existe, mostrar con mayúscula inicial en cada palabra. Ej: "San Miguel".
-            - telefono: null si no tiene entre 7-15 dígitos.
             - correo: null si no es válido o no se llegó al paso de pedir correo.
             - presupuesto: null si no hay número claro. Si existe, mostrar formateado con comas como separador de miles.
             - nombre_completo: null si es solo un nombre corto. Si existe, mostrar con mayúscula inicial en cada palabra. Ej: "Antony Espinoza".
@@ -127,7 +124,6 @@ export const flowLuzIA = addKeyword(EVENTS.ACTION).addAction(
       )
 
       const data = {
-        phone: parsed.telefono ?? null,
         name: parsed.nombre_completo ?? null,
         startDate: parsed.fecha_cita ?? null,
         email: parsed.correo ?? null,
@@ -174,28 +170,28 @@ export const flowLuzIA = addKeyword(EVENTS.ACTION).addAction(
       //   }, 5000)
       }
 
-      if (!state.get('gate_prices_passed') && (confirmedData.name && confirmedData.phone)) {
+      if (!state.get('gate_prices_passed') && (confirmedData.name)) {
         // setTimeout(async () => {
         //   await hubspot.update({
         //     phone: ctx.from,
         //     updates: {
         //       firstname: confirmedData.name,
-        //       hs_whatsapp_phone_number: confirmedData.phone
+        //       hs_whatsapp_phone_number: ctx.from
         //     }
         //   })
           await state.update({ gate_prices_passed: true })
         // }, 5000)
         
-        const filteredProperties = properties.filter(prop => {
+        let filteredProperties = properties.filter(prop => {
           let isValid = true
 
           if (confirmedData?.district) {
             isValid = isValid && prop.distrito.toLowerCase() === confirmedData.district.toLowerCase()
           }
 
-          // if (confirmedData?.bedrooms) {
-          //   isValid = isValid && Number(prop.habitaciones) === Number(confirmedData.bedrooms)
-          // }
+          if (confirmedData?.bedrooms) {
+            isValid = isValid && Number(prop.habitaciones) === Number(confirmedData.bedrooms)
+          }
 
           // if (confirmedData?.budget) {
           //   const budgetNumber = parseInt(confirmedData.budget.replace(/,/g, ''), 10)
@@ -223,39 +219,62 @@ export const flowLuzIA = addKeyword(EVENTS.ACTION).addAction(
           return isValid
         })
 
-        if (filteredProperties.length > 0) {
-          const reports = filteredProperties.slice(0, 3)
-            .map((prop, index) => `${index + 1}. ${generateReport(prop)}`)
-            .join('\n\n')
+        let messageIntro = "¡Excelente! Preparé estas 3 opciones para ti.\n\n"
 
-          await flowDynamic([{ body: "¡Excelente! Preparé estas 3 opciones para ti.\n\n" + reports }])
-          // await flowDynamic([{ body: "Por favor, indícame el número del proyecto que más te interesa (1, 2 o 3)." }])
-  
-          const recommendedProjects = filteredProperties.slice(0, 3)
-            // .map(p => p.proyecto).join(', ')
-            .map((prop, index) => `${index + 1}. ${prop.proyecto}`)
-            .join('\n')
-          
-          // setTimeout(async () => {
-          //   await hubspot.update({ 
-          //     phone: ctx.from, 
-          //     updates: { 
-          //       proyectos_recomendados: reports,
-          //       dormitorios_necesarios: confirmedData.bedrooms
-          //     } 
-          //   })
-          // }, 5000)
-          
-          await state.update({ 
-            informes_entregados: true, 
-            recommended_projects: recommendedProjects,
-            reports_projects: reports
-          })
+        if (filteredProperties.length === 0) {
+          if (confirmedData?.district) {
+            filteredProperties = properties.filter(
+              prop => prop.distrito.toLowerCase() === confirmedData.district.toLowerCase()
+            )
+          }
+
+          if (filteredProperties.length === 0 && confirmedData?.bedrooms) {
+            filteredProperties = properties.filter(
+              prop => Number(prop.habitaciones) === Number(confirmedData.bedrooms)
+            )
+          }
+
+          // Si sigue vacío, mostrar cualquier 3 proyectos
+          if (filteredProperties.length === 0) {
+            filteredProperties = properties
+          }
+
+          messageIntro = "✨ No encontré coincidencias exactas, pero aquí tienes 3 recomendaciones que podrían interesarte:\n\n"
+        }
+
+        const reports = filteredProperties.slice(0, 3)
+          .map((prop, index) => `${index + 1}. ${generateReport(prop)}`)
+          .join('\n\n')
+
+        await flowDynamic([{ body: messageIntro + reports }])
+        // await flowDynamic([{ body: "¡Excelente! Preparé estas 3 opciones para ti.\n\n" + reports }])
+        // await flowDynamic([{ body: "Por favor, indícame el número del proyecto que más te interesa (1, 2 o 3)." }])
+
+        const recommendedProjects = filteredProperties.slice(0, 3)
+          // .map(p => p.proyecto).join(', ')
+          .map((prop, index) => `${index + 1}. ${prop.proyecto}`)
+          .join('\n')
+        
+        // setTimeout(async () => {
+        //   await hubspot.update({ 
+        //     phone: ctx.from, 
+        //     updates: { 
+        //       proyectos_recomendados: reports,
+        //       dormitorios_necesarios: confirmedData.bedrooms
+        //     } 
+        //   })
+        // }, 5000)
+        
+        await state.update({ 
+          informes_entregados: true, 
+          recommended_projects: recommendedProjects,
+          reports_projects: reports
+        })
 
           // await flowDynamic([{ body: "¿Cuál de estos proyectos te interesa más?" }])
-        } else {
-          await flowDynamic("Lo siento, no pude encontrar proyectos que coincidan con tus criterios. ¿Te gustaría buscar con otros parámetros?")
-        }
+        // } else {
+        //   await flowDynamic("Lo siento, no pude encontrar proyectos que coincidan con tus criterios. ¿Te gustaría buscar con otros parámetros?")
+        // }
       }
 
       // console.log(parsed)
@@ -285,7 +304,7 @@ export const flowLuzIA = addKeyword(EVENTS.ACTION).addAction(
             : "No"
 
         const payload = {
-          phone: confirmedData.phone ?? "-",
+          phone: ctx.from ?? "-",
           name: confirmedData.name ?? "-",
           startDate: confirmedData.startDate ?? "-",
           email: data.email ?? "-",
@@ -321,7 +340,8 @@ export const flowLuzIA = addKeyword(EVENTS.ACTION).addAction(
               dormitorios_necesarios: payload.bedrooms,
               distrito_interes: payload.district,
               presupuesto_aprox: payload.budget,
-              hs_content_membership_notes: payload.note
+              hs_content_membership_notes: payload.note,
+              fecha_cita: payload.startDate
             } 
           })
         }, 5000)

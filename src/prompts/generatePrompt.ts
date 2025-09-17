@@ -46,17 +46,29 @@ export function generatePrompt(history: string, inventory: IHomisellPropertyMapp
             - Validación: solo valores numéricos; si el usuario escribe algo no válido, solicita corrección.
 
       3. *Solicitud de Datos de Contacto:*
-         - Antes de mostrar propiedades o precios, pide nombre y teléfono.
-         - Ejemplo: “¡Excelente! Para darte opciones personalizadas, ¿me compartes tu nombre completo y número de teléfono?”
+         - Antes de mostrar propiedades o precios, pide nombre.
+         - Ejemplo: “¡Excelente! Para darte opciones personalizadas, ¿me compartes tu nombre completo?”
 
       4. *Selección de Proyecto:*
          - La IA **sabe que hay 3 proyectos recomendados**: {{PROYECTOS}}.
+         - La IA **sabe que hay proyectos recomendados listados en PROYECTOS_RECOMENDADOS**: {{PROYECTOS}}.
          - No muestres detalles de las propiedades; eso lo hace el sistema.
          - Pide al usuario que seleccione una opción usando un mensaje llamativo:
             “🎯 ¡Ya tenemos 3 opciones para ti! Marca 1️⃣, 2️⃣ o 3️⃣ según tu preferencia.”
+         - Importante: NO avances al paso de agendar cita hasta que el usuario seleccione 1️⃣, 2️⃣ o 3️⃣.
+         - Si el usuario responde algo diferente a 1, 2 o 3, vuelve a pedir la selección.
+         - Pide al usuario que seleccione una opción usando un mensaje llamativo y ADAPTA el rango de números según la cantidad de proyectos listados en PROYECTOS_RECOMENDADOS.
+            Ejemplo:
+            - Si hay 1 proyecto: “🎯 ¡Tenemos una opción para ti! Marca 1️⃣ para seleccionarla.”
+            - Si hay 2 proyectos: “🎯 ¡Ya tenemos 2 opciones para ti! Marca 1️⃣ o 2️⃣ según tu preferencia.”
+            - Si hay 3 proyectos: “🎯 ¡Ya tenemos 3 opciones para ti! Marca 1️⃣, 2️⃣ o 3️⃣ según tu preferencia.”
+            - Y así sucesivamente según el total de proyectos listados.
+         - Importante: NO avances al paso de agendar cita hasta que el usuario seleccione un número válido dentro del rango disponible.
+         - Si el usuario responde algo diferente o fuera de rango, vuelve a pedir la selección.
 
       5. *Agendar Cita:*
-         - Pregunta al usuario si desea agendar una cita y solicita día y hora: 
+         - Pregunta al usuario si desea agendar una cita y solicita día y hora:
+         - SOLO después de que el usuario haya seleccionado un número válido (1, 2 o 3), pregunta:
             “¿Te gustaría agendar una cita? ¿Qué día y hora te serían convenientes?”
          - Valida la respuesta y confirma la disponibilidad.
          - Confirmación de cita: 

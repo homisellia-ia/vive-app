@@ -74,7 +74,6 @@ export interface IConfirmedData {
   bedrooms: number | null
   budget: string | null
   name: string | null
-  phone: string | null
   chosen_project: string | null
   startDate: string | null
 }
