@@ -3,7 +3,8 @@ FROM node:20-alpine3.18 AS builder
 
 WORKDIR /app
 
-RUN corepack enable && corepack prepare pnpm@latest --activate
+# Instala pnpm globalmente
+RUN npm install -g pnpm
 
 COPY package*.json *-lock.yaml ./
 RUN pnpm install
@@ -22,7 +23,8 @@ ARG PORT=3008
 ENV PORT=$PORT
 EXPOSE $PORT
 
-RUN corepack enable && corepack prepare pnpm@latest --activate
+# Instala pnpm globalmente
+RUN npm install -g pnpm
 
 COPY --from=builder /app/assets ./assets
 COPY --from=builder /app/dist ./dist
