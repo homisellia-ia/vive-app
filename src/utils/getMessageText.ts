@@ -72,7 +72,7 @@ export async function getMessageParts(payload: any, provider: any): Promise<{ te
                 fs.writeFileSync(filePath, buffer)
             }
 
-            const url = `${config.BASE_URL}/uploads/${fileName}`
+            const url = `${config.botUrl}/uploads/${fileName}`
             const caption = payload.message.imageMessage.caption || ""
 
             return {

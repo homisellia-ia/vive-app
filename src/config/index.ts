@@ -2,7 +2,6 @@ import "dotenv/config"
 
 export const config = {
     PORT: process.env.PORT ?? 3008,
-    BASE_URL: process.env.APP_BASE_URL,
     // AI
     Model: process.env.MODEL,
     ApiKey: process.env.API_KEY,
