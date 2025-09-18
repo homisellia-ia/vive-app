@@ -1,5 +1,0 @@
-ignoredBuiltDependencies:
-  - baileys
-  - esbuild
-  - protobufjs
-  - sharp
