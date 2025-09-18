@@ -22,7 +22,6 @@
     "date-fns": "^4.1.0",
     "dotenv": "^17.2.1",
     "google-auth-library": "^10.3.0",
-    "google-spreadsheet": "^5.0.2",
     "googleapis": "^155.0.1",
     "nodemailer": "^7.0.6",
     "openai": "^5.12.2",

@@ -9,7 +9,6 @@ import AIClass from './services/ai'
 import flows from './flows'
 import { handlerMessage } from './services/chatwoot'
 import { handlerHubspot } from './services/hubspot'
-import { handlerSheets } from './services/sheets'
 import { format } from 'date-fns'
 import { getMessageParts } from './utils/getMessageText'
 import path from 'path'
@@ -143,13 +142,6 @@ const main = async () => {
                     },
                     chatwoot
                 )
-
-                // await handlerSheets({
-                //     phone: payload.from,
-                //     name: "Sin datos",
-                //     date: format(new Date(), 'dd/MM/yy HH:mm'),
-                //     owner: agentData?.ownerName ?? ""
-                // })
 
                 await handlerHubspot({
                     name: payload.pushName,

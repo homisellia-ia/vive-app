@@ -6,10 +6,6 @@ export const config = {
     // AI
     Model: process.env.MODEL,
     ApiKey: process.env.API_KEY,
-    // Sheets
-    spreadsheetId: process.env.SPREADSHEET_ID,
-    privateKey: process.env.PRIVATE_KEY,
-    clientEmail: process.env.CLIENT_EMAIL,
     // HubSpot
     hubspotToken: process.env.HUBSPOT_TOKEN,
     hubspotEndpoint: process.env.HUBSPOT_ENDPOINT,

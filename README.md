@@ -30,7 +30,6 @@ LuzIA es una asistente virtual inmobiliaria, amigable y experta, especializada e
 
 ### 🔗 **Integraciones CRM**
 - **HubSpot**: Sincronización automática de contactos y propiedades
-- **Google Sheets**: Registro y tracking de conversaciones
 - **Chatwoot**: Centro de atención al cliente integrado
 - **WhatsApp Business**: Comunicación nativa vía Baileys
 
@@ -57,7 +56,6 @@ graph TB
     H --> J
     I --> J
     J --> K[HubSpot]
-    J --> L[Google Sheets]
     J --> M[Chatwoot]
 ```
 
@@ -121,11 +119,6 @@ BOT_URL=https://tu-dominio.com
 # Configuración de IA (OpenAI o Google AI)
 MODEL=gpt-4
 API_KEY=tu_api_key_aqui
-
-# Google Sheets (para registro de datos)
-SPREADSHEET_ID=tu_spreadsheet_id
-PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\ntu_private_key\n-----END PRIVATE KEY-----\n"
-CLIENT_EMAIL=tu-service-account@proyecto.iam.gserviceaccount.com
 
 # HubSpot CRM
 HUBSPOT_TOKEN=tu_hubspot_token
@@ -218,7 +211,6 @@ pnpm run lint
 
 ### **Integraciones**
 - **HubSpot API** - CRM de ventas
-- **Google Sheets API** - Base de datos de registros
 - **Chatwoot API** - Centro de atención
 
 ### **DevOps**
