@@ -1,5 +1,5 @@
 # Image size ~ 400MB
-FROM node:21-alpine3.18 AS builder
+FROM node:20-alpine3.18 AS builder
 
 WORKDIR /app
 
@@ -14,7 +14,7 @@ RUN pnpm run build
 
 
 # Etapa 2: Deploy
-FROM node:21-alpine3.18 AS deploy
+FROM node:20-alpine3.18 AS deploy
 
 WORKDIR /app
 
