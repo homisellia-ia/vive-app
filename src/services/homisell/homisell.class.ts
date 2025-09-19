@@ -1,4 +1,3 @@
-import axios from 'axios'
 import { IHomisellProperty } from '~/types/luzia'
 
 export class HomisellService {
